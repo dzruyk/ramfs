@@ -10,16 +10,23 @@
 #define TODO_WRITEME do {				\
 	printf("TODO: WRITEME %s\n", __FUNCTION__);	\
 	return 0;					\
-} while (0);
+} while (0)
 
-//WARN: gcc feature used
-#define ALLOC(fsnode, sz) ({					\
-		assert(fsnode && fsnode->sb && fsnode->sb->alloc); \
-		void *ptr = fsnode->sb->alloc(NULL, sz);	\
-		assert(ptr);					\
-		memset(ptr, 0, sz);				\
-		ptr;						\
-})
+#define NODE(n) ((mynode_t *)n)
+
+
+static void *
+_alloc(mynode_t *n, int sz) {
+	void *ptr;
+
+	assert(n && n->sb && n->sb->alloc);
+	assert(ptr);
+
+	ptr = n->sb->alloc(NULL, sz);
+	memset(ptr, 0, sz);
+	return ptr;
+
+}
 
 static void
 dir_init(mydir_t *d, mydir_t *parent, char *fname)
@@ -77,7 +84,7 @@ ramfs_file_new(mydir_t *curdir, char *fpath)
 	if (!parent)
 		return NULL;
 
-	f = ALLOC(curdir, sizeof(*f));
+	f = _alloc(curdir, sizeof(*f));
 
 	f->type = TYPE_FILE;
 	f->sb = curdir->sb;
@@ -99,7 +106,7 @@ ramfs_dir_new(mydir_t *curdir, char *fpath)
 	if (!parent)
 		return NULL;
 
-	d = ALLOC(curdir, sizeof(*d));
+	d = _alloc(curdir, sizeof(*d));
 
 	dir_init(d, parent, basename(fpath));
 	ramfs_dir_add(parent, d);
@@ -122,7 +129,7 @@ ramfs_dir_add(mydir_t *parent, mynode_t *child)
 		assert(0);
 	}
 
-	vector_push(vec, child);
+	vector_push(vec, &child);
 
 	return 0;
 }
@@ -130,8 +137,7 @@ ramfs_dir_add(mydir_t *parent, mynode_t *child)
 mydir_t *
 ramfs_mkdir(mydir_t *curdir, char *filepath)
 {
-
-	return NULL;
+	TODO_WRITEME;
 }
 
 mynode_t *
@@ -157,7 +163,7 @@ myfile_t *
 ramfs_file_open(mydir_t *curdir, char *filepath, int flags)
 {
 
-	return NULL;
+	TODO_WRITEME;
 }
 
 void
@@ -169,7 +175,7 @@ ramfs_debug_ls(mydir_t *d)
 	printf("dir %s, Nfiles = %d\n", d->fname, nfiles);
 	for (i = 0; i < nfiles; i++) {
 		myfile_t *fp;
-		fp = vector_get(&d->child_files, i);
+		fp = *(myfile_t **)vector_get(&d->child_files, i);
 		printf("\tfilename = %s\n", fp->fname);
 	}
 
@@ -177,7 +183,7 @@ ramfs_debug_ls(mydir_t *d)
 	printf("dir %s, Ndirs = %d\n", d->fname, ndirs);
 	for (i = 0; i < ndirs; i++) {
 		mydir_t*fp;
-		fp = vector_get(&d->child_files, i);
+		fp = *(mydir_t **)vector_get(&d->child_files, i);
 		printf("\tdirname = %s\n", fp->fname);
 	}
 
