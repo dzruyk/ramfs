@@ -4,39 +4,42 @@
 #include "vector/vector.h"
 
 typedef enum {
-	TYPE_FILE = 0,
+	TYPE_NO = 0,
+	TYPE_FILE,
 	TYPE_DIR,
 } ramfs_type;
 
 typedef void *(*allocator_t)(void *oldptr, size_t sz);
 
 struct mydir;
-typedef struct mydir mydir_t;
-typedef mydir_t mynode_t;
+typedef struct mydir ramdir_t;
+typedef ramdir_t mynode_t;
 
 typedef struct {
-	mydir_t *root;
+	ramdir_t *root;
 	allocator_t alloc;
 } superblock_t;
 
-#define FSNODE_COMMON			\
-		ramfs_type type;	\
-		char *fname;		\
-		mydir_t *parent;	\
-		superblock_t *sb;	\
-					\
-		struct stat attr
-
 struct mydir {
-	FSNODE_COMMON;
+	/* common fields */
+	char *fname;
+	ramdir_t *parent;
+	superblock_t *sb;
+	struct stat attr;
 
+	/* special fields */
 	vector child_dirs;
 	vector child_files;
 };
 
 typedef struct {
-	FSNODE_COMMON;
+	/* common fields */
+	char *fname;
+	ramdir_t *parent;
+	superblock_t *sb;
+	struct stat attr;
 
+	/* special fields */
 	int datalen;
 	uint8_t *data;
 
@@ -44,32 +47,36 @@ typedef struct {
 	// some references to it.
 	// Delete file only when last descriptor is closed.
 	int nrefs;
-} myfile_t;
+} ramfile_t;
 
 /* Initialize new fs, create root directory. */
 void ramfs_init(superblock_t *sb, allocator_t alloc);
 
-myfile_t *ramfs_file_new(mydir_t *curdir, char *fpath);
-mydir_t *ramfs_dir_new(mydir_t *curdir, char *fpath);
+ramfile_t *ramfs_file_new(ramdir_t *curdir, char *fpath);
+ramdir_t *ramfs_dir_new(ramdir_t *curdir, char *fpath);
 
-/* Return found fs node (directory or file).
- * NOTE: don't forget to checkout node->type */
-mynode_t *ramfs_lookup(mydir_t *curdir, char *fpath);
-mynode_t *ramfs_lookup_dirname(mydir_t *curdir, char *fpath);
+ramfile_t *ramfs_lookup_file(ramdir_t *curdir, char *fpath);
+ramdir_t *ramfs_lookup_dir(ramdir_t *curdir, char *fpath);
+
+mynode_t *ramfs_lookup_dirname(ramdir_t *curdir, char *fpath);
 
 /* File operations */
-myfile_t *ramfs_file_open(mydir_t *curdir, char *filepath, int flags);
-int ramfs_file_read(myfile_t *fp, const char *buf, int sz, int off);
-int ramfs_file_write(myfile_t *fp, char *buf, int sz, int off);
-int ramfs_file_close(myfile_t *dst);
-int ramfs_file_move(mydir_t *dstdir, myfile_t *file);
-int ramfs_file_rm(mydir_t *curdir, char *filepath);
+ramfile_t *ramfs_file_open(ramdir_t *curdir, char *filepath, int flags);
+int ramfs_file_read(ramfile_t *fp, const char *buf, int sz, int off);
+int ramfs_file_write(ramfile_t *fp, char *buf, int sz, int off);
+int ramfs_file_close(ramfile_t *dst);
+int ramfs_file_move(ramdir_t *dstdir, ramfile_t *file);
+int ramfs_file_rm(ramdir_t *curdir, char *filepath);
 
 /* Dir operations */
-mydir_t *ramfs_mkdir(mydir_t *curdir, char *filepath);
-int ramfs_dir_add(mydir_t *parent, mynode_t *child);
+ramdir_t *ramfs_mkdir(ramdir_t *curdir, char *filepath);
+
+/* Internal stuff */
+ramfs_type ramfs_obj_type(ramdir_t *curdir, char *fpath);
+int ramfs_dir_add_dir(ramdir_t *parent, ramdir_t *child);
+int ramfs_dir_add_file(ramdir_t *parent, ramfile_t *child);
 
 /* Debugging stuff */
-void ramfs_debug_ls(mydir_t *sb);
+void ramfs_debug_ls(ramdir_t *sb);
 
 #endif
