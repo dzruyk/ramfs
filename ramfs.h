@@ -1,10 +1,6 @@
 #ifndef _RAMFS__H_
 #define _RAMFS__H_
 
-#include <stdint.h>
-
-#include <sys/stat.h>
-
 #include "vector/vector.h"
 
 typedef enum {

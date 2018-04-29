@@ -2,8 +2,11 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sys/stat.h>
 
 #include "ramfs.h"
 
@@ -182,14 +185,14 @@ ramfs_debug_ls(mydir_t *d)
 	ndirs = vector_nmemb(&d->child_dirs);
 	printf("dir %s, Ndirs = %d\n", d->fname, ndirs);
 	for (i = 0; i < ndirs; i++) {
-		mydir_t*fp;
-		fp = *(mydir_t **)vector_get(&d->child_files, i);
+		mydir_t *fp;
+		fp = *(mydir_t **)vector_get(&d->child_dirs, i);
 		printf("\tdirname = %s\n", fp->fname);
 	}
 
 	for (i = 0; i < ndirs; i++) {
-		mydir_t*fp;
-		fp = vector_get(&d->child_files, i);
+		mydir_t *fp;
+		fp = *(mydir_t **)vector_get(&d->child_dirs, i);
 		ramfs_debug_ls(fp);
 	}
 
