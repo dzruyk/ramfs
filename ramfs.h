@@ -12,7 +12,7 @@ typedef enum {
 	TYPE_DIR,
 } ramfs_type;
 
-typedef void *(*allocator_t)(size_t sz);
+typedef void *(*allocator_t)(void *oldptr, size_t sz);
 
 struct mydir;
 typedef struct mydir mydir_t;
@@ -34,8 +34,8 @@ typedef struct {
 struct mydir {
 	FSNODE_COMMON;
 
-	vector *child_dirs;
-	vector *child_files;
+	vector child_dirs;
+	vector child_files;
 };
 
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
 	int datalen;
 	uint8_t *data;
 
-	// We can delete file from directory, but still have
+	// We can delete file from directory, but still may have
 	// some references to it.
 	// Delete file only when last descriptor is closed.
 	int nrefs;
@@ -59,6 +59,7 @@ mydir_t *ramfs_dir_new(mydir_t *curdir, char *fpath);
 /* Return found fs node (directory or file).
  * NOTE: don't forget to checkout node->type */
 mynode_t *ramfs_lookup(mydir_t *curdir, char *fpath);
+mynode_t *ramfs_lookup_dirname(mydir_t *curdir, char *fpath);
 
 /* File operations */
 myfile_t *ramfs_file_open(mydir_t *curdir, char *filepath, int flags);
@@ -72,7 +73,7 @@ int ramfs_file_rm(mydir_t *curdir, char *filepath);
 mydir_t *ramfs_mkdir(mydir_t *curdir, char *filepath);
 int ramfs_dir_add(mydir_t *parent, mynode_t *child);
 
-/* TODO: delme */
-int ramfs_getfile(mydir_t *curdir, char *filepath, myfile_t *dst);
+/* Debugging stuff */
+void ramfs_debug_ls(mydir_t *sb);
 
 #endif
