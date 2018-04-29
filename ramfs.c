@@ -1,54 +1,62 @@
-#include <string.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "ramfs.h"
 
 //WARN: gcc feature used
-#define ALLOC(sz) {				\
-		  void *ptr = sb->alloc(sz);	\
-		  assert(ptr);			\
-		  memset(ptr, 0, sz);		\
-		  ptr;				\
-}
+#define ALLOC(sz) ({					\
+		assert(curdir && curdir->sb && curdir->sb->alloc); \
+		void *ptr = curdir->sb->alloc(sz);	\
+		assert(ptr);				\
+		memset(ptr, 0, sz);			\
+		ptr;					\
+})
 
 void
 ramfs_init(superblock_t *sb, allocator_t alloc)
 {
 	sb->alloc = alloc;
-	sb->root = ramfs_dir_new(sb, "/");
-	sb->root->parent = sb->root;
+	sb->root = alloc(sizeof(*sb->root));
+	assert(sb->root);
+	memset(sb->root, 0, sizeof(*sb->root));
 
-	assert(sb->root != 0)
+	sb->root->parent = sb->root;
+	sb->root->sb = sb;
+
+	assert(sb->root != 0);
 }
 
 myfile_t *
-ramfs_file_new(superblock_t *sb, char *fpath)
+ramfs_file_new(mydir_t *curdir, char *fpath)
 {
-	memset(sb, 0, sizeof(*dst));
+	myfile_t *f;
+
+	f = ALLOC(sizeof(*f));
+
+	memset(f, 0, sizeof(*f));
 }
 
 mydir_t *
-ramfs_dir_new(superblock_t *sb, char *fpath)
+ramfs_dir_new(mydir_t *curdir, char *fpath)
 {
 	mydir_t *d;
 	mydir_t *parent;
 
+	assert(sb->root);
+
+	parent = ramfs_lookup(sb, fpath);
+	if (!parent)
+		return NULL;
+
 	d = ALLOC(sizeof(*d));
 
-	if (strcmp(fpath, "/") == 0) {
-		//special case, init root fs
-		parent = sb
-	} else {
-		assert(sb->root);
-		parent = ramfs_lookup(sb, fpath);
-		if (!parent)
-			return NULL;
-	}
-
-
 	d->parent = parent;
-	
-	return 0;
+
+	ramfs_dir_add(parent, d);
+
+	return d;
 }
 
 

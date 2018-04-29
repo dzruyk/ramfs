@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include "ramfs.h"
@@ -22,11 +24,13 @@ main(int argc, const char *argv[])
 	mydir_t *dp;
 
 	ramfs_init(&sb, malloc);
-	ramfs_dir_new(&sb, "/tmp/");
-	ramfs_file_new(&sb, "/tmp/hello");
-	ramfs_file_new(&sb, "/../../../../../q.txt");
+	assert(
+		ramfs_dir_new(sb.root, "/tmp/") &&
+		ramfs_file_new(sb.root, "/tmp/hello") &&
+		ramfs_file_new(sb.root, "/../../../../../q.txt")
+	);
 
-	ramfs_lookup(sb.root, "/tmp/dir/subdir/hello");
+	assert(ramfs_lookup(sb.root, "/tmp/dir/subdir/hello") == NULL);
 
 	open_test(&sb);
 
