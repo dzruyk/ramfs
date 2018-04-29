@@ -23,12 +23,12 @@ _alloc(mynode_t *n, int sz) {
 	void *ptr;
 
 	assert(n && n->sb && n->sb->alloc);
-	assert(ptr);
 
 	ptr = n->sb->alloc(NULL, sz);
+	assert(ptr);
 	memset(ptr, 0, sz);
-	return ptr;
 
+	return ptr;
 }
 
 static void
@@ -62,6 +62,28 @@ dir_finalize(ramdir_t *d)
 
 	free(d->fname);
 	d->sb->alloc(d, 0);
+}
+
+static ramdir_t *
+dir_search_dir(ramdir_t *curdir, char *filename)
+{
+	ramdir_t **dirs;
+	int i, n;
+
+	//special cases
+	if (strcmp(filename, ".") == 0)
+		return curdir;
+
+	if (strcmp(filename, "..") == 0)
+		return curdir->parent;
+
+	n = vector_nmemb(&curdir->child_dirs);
+	dirs = vector_data(&curdir->child_dirs);
+	for (i = 0; i < n; i++) {
+		if (strcmp(filename, dirs[i]->fname) == 0)
+			return dirs[i];
+	}
+	return NULL;
 }
 
 void
@@ -141,28 +163,68 @@ ramfs_mkdir(ramdir_t *curdir, char *filepath)
 ramfile_t *
 ramfs_lookup_file(ramdir_t *curdir, char *fpath)
 {
+	ramdir_t *d;
+
 	if (fpath == NULL)
 		return NULL;
 
+	d = ramfs_lookup_dirname(curdir, fpath);
+	if (!d)
+		return NULL;
+
 	return NULL;
+	//return dir_search_file(d, basename(fpath));
 }
 
 ramdir_t *
 ramfs_lookup_dir(ramdir_t *curdir, char *fpath)
 {
+	ramdir_t *d;
+
 	if (fpath == NULL)
 		return NULL;
 
-	return NULL;
+	d = ramfs_lookup_dirname(curdir, fpath);
+	if (!d)
+		return NULL;
+
+	return dir_search_dir(d, basename(fpath));
 }
 
 ramdir_t *
 ramfs_lookup_dirname(ramdir_t *curdir, char *fpath)
 {
+	ramdir_t *child;
+	char *ptr;
+	char buf[128];
+
 	if (fpath == NULL)
 		return curdir;
 
-	return NULL;
+	if (*fpath == '/') {
+		curdir = curdir->sb->root;
+		fpath++;
+	}
+
+	while (fpath && *fpath) {
+		ptr = strchr(fpath, '/');
+		if (!ptr) break;
+		// it's last component
+		if (ptr[1] == '\0') break;
+
+		//FIXME: strncpy is error prone
+		memset(buf, 0, sizeof(buf));
+		strncpy(buf, fpath, ptr - fpath);
+
+		child = dir_search_dir(curdir, buf);
+		if (!child)
+			return NULL;
+
+		curdir = child;
+		fpath = ptr + 1;
+	}
+
+	return curdir;
 }
 
 ramfile_t *
