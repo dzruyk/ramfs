@@ -1,0 +1,4 @@
+[submodule "vector"]
+	path = vector
+	url = https://github.com/i1i1/vector/
+	branch = static
