@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -297,6 +298,23 @@ ramfs_file_close(ramfile_t *fp)
 }
 
 int
+ramfs_file_truncate(ramfile_t *fp, off_t sz)
+{
+	void *ptr;
+
+	ptr = fp->sb->alloc(fp->data, sz);
+	if (ptr)
+		return E2BIG;
+
+	fp->data = ptr;
+	fp->datalen = sz;
+
+	update_stbuf(RAMNODE(fp));
+
+	return 0;
+}
+
+int
 ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off)
 {
 	int n;
@@ -317,17 +335,19 @@ ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off)
 int
 ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t  off)
 {
+	int n;
 	void *ptr;
 
 	assert(buf && sz >= 0);
 
 	if (fp->datalen < off + sz) {
-		fp->datalen = off + sz;
+		n = off + sz;
 
-		ptr = fp->sb->alloc(fp->data, fp->datalen);
+		ptr = fp->sb->alloc(fp->data, n);
 		if (ptr == NULL)
 			return -1;
 		fp->data = ptr;
+		fp->datalen = n;
 	}
 	memcpy(fp->data + off, buf, sz);
 

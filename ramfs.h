@@ -66,6 +66,8 @@ ramfile_t *ramfs_file_open(ramfile_t *fp, int flags);
 int ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off);
 int ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t off);
 int ramfs_file_close(ramfile_t *fp);
+int ramfs_file_truncate(ramfile_t *fp, off_t sz);
+
 int ramfs_file_move(ramdir_t *dstdir, ramfile_t *file);
 int ramfs_file_rm(ramdir_t *curdir, char *filepath);
 

@@ -50,6 +50,7 @@ fuseram_getattr(const char *path, struct stat *stbuf)
 	return res;
 }
 
+/*
 static int
 fuseram_opendir(const char *path, struct fuse_file_info *fp)
 {
@@ -57,6 +58,7 @@ fuseram_opendir(const char *path, struct fuse_file_info *fp)
 	return 0;
 
 }
+*/
 
 static int
 fuseram_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -186,7 +188,20 @@ fuseram_write(const char *path, const char *buf, size_t size, off_t offset,
 	return n;
 }
 
+static int
+fuseram_truncate(const char *path, off_t size)
+{
+	ramfile_t *fp;
+	int res;
 
+	fp = ramfs_lookup(ramfs->root, path);
+
+	res = ramfs_file_truncate(fp, size);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
 
 /* xattr operations are optional and can safely be left unimplemented */
 static int fuseram_setxattr(const char *path, const char *name, const char *value,
@@ -228,6 +243,7 @@ static struct fuse_operations fuseram_oper = {
 	.release	= fuseram_close,
 	.read		= fuseram_read,
 	.write		= fuseram_write,
+	.truncate	= fuseram_truncate,
 };
 
 int

@@ -16,7 +16,8 @@ void *
 xrealloc(void *ptr, size_t sz)
 {
 	void *tmp;
-	if ((tmp = realloc(ptr, sz)) == NULL)
+	tmp = realloc(ptr, sz);
+	if (sz != 0 && tmp == NULL)
 		error(1, "malloc_err");
 	return tmp;
 }
