@@ -10,11 +10,18 @@ open_test(superblock_t *sb)
 {
 	ramfile_t *fp;
 	ramdir_t *dp;
+	char buf[1024];
+	int n;
 
 	dp = ramfs_lookup(sb->root, "/tmp/dir");
 	if (dp != NULL && dp->type == TYPE_DIR) {
 		fp = ramfs_file_open(dp, "file.txt", O_RDWR);
-		//ramfs_file_write(fp, "hello", 5, 0);
+		ramfs_file_write(fp, "hello", 5, 0);
+		ramfs_file_close(fp);
+
+		n = ramfs_file_read(fp, buf, 1024, 0);
+		assert(n == 5);
+		assert(strncmp(buf, "hello", 5) == 0);
 	}
 
 	return 0;

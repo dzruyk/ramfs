@@ -3,7 +3,6 @@
 
 #include "hash/hash.h"
 
-
 #define RAMNODE(ptr) ((ramnode_t*) ptr)
 
 typedef enum {
@@ -54,6 +53,7 @@ typedef struct {
 
 /* Initialize new fs, create root directory. */
 void ramfs_init(superblock_t *sb, allocator_t alloc);
+void ramfs_destroy(superblock_t *sb);
 
 ramfile_t *ramfs_file_new(ramdir_t *curdir, char *fpath);
 ramdir_t *ramfs_dir_new(ramdir_t *curdir, char *fpath);
@@ -63,9 +63,9 @@ ramnode_t *ramfs_lookup_dirname(ramdir_t *curdir, char *fpath);
 
 /* File operations */
 ramfile_t *ramfs_file_open(ramdir_t *curdir, char *filepath, int flags);
-int ramfs_file_read(ramfile_t *fp, const char *buf, int sz, int off);
-int ramfs_file_write(ramfile_t *fp, char *buf, int sz, int off);
-int ramfs_file_close(ramfile_t *dst);
+int ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off);
+int ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t off);
+int ramfs_file_close(ramfile_t *fp);
 int ramfs_file_move(ramdir_t *dstdir, ramfile_t *file);
 int ramfs_file_rm(ramdir_t *curdir, char *filepath);
 

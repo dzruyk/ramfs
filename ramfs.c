@@ -40,7 +40,6 @@ ramfs_hash_cmp(const void *a, const void *b)
 static unsigned long
 ramfs_hash_cb(const void *data)
 {
-	ramnode_t *na;
 	char *s;
 	int i, mult, res;
 
@@ -84,6 +83,14 @@ dir_finalize(ramdir_t *d)
 
 	free(d->fname);
 	d->sb->alloc(d, 0);
+}
+
+static void
+file_finalize(ramfile_t *f)
+{
+	if (f->datalen > 0)
+		f->sb->alloc(f->data, 0);
+	f->sb->alloc(f, 0);
 }
 
 static ramnode_t *
@@ -224,8 +231,66 @@ ramfs_lookup_dirname(ramdir_t *curdir, char *fpath)
 ramfile_t *
 ramfs_file_open(ramdir_t *curdir, char *filepath, int flags)
 {
+	ramfile_t *f;
 
-	TODO_WRITEME;
+	//TODO: handle flags
+
+	f = (ramfile_t *)ramfs_lookup(curdir, filepath);
+	if (f == NULL || f->type != TYPE_FILE)
+		return NULL;
+
+	f->nrefs++;
+	return f;
+}
+
+int
+ramfs_file_close(ramfile_t *fp)
+{
+	fp->nrefs--;
+
+	if (!fp->parent && fp->nrefs <= 0) {
+		file_finalize(fp);
+	}
+
+	return 0;
+}
+
+int
+ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off)
+{
+	int n;
+
+	assert(buf);
+
+	if (fp->datalen == 0 || off >= fp->datalen)
+		return 0;
+
+	n = sz;
+	if (sz + off > fp->datalen)
+		n = fp->datalen - off;
+	memcpy(buf, fp->data + off, n);
+
+	return n;
+}
+
+int
+ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t  off)
+{
+	void *ptr;
+
+	assert(buf && sz >= 0);
+
+	if (fp->datalen < off + sz) {
+		fp->datalen = off + sz;
+
+		ptr = fp->sb->alloc(fp->data, fp->datalen);
+		if (ptr == NULL)
+			return -1;
+		fp->data = ptr;
+	}
+	memcpy(fp->data + off, buf, sz);
+
+	return sz;
 }
 
 void
