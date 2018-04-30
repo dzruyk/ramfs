@@ -1,39 +1,42 @@
 #ifndef _RAMFS__H_
 #define _RAMFS__H_
 
-#include "vector/vector.h"
+#include "hash/hash.h"
+
+
+#define RAMNODE(ptr) ((ramnode_t*) ptr)
 
 typedef enum {
-	TYPE_NO = 0,
-	TYPE_FILE,
+	TYPE_FILE = 0,
 	TYPE_DIR,
 } ramfs_type;
 
 typedef void *(*allocator_t)(void *oldptr, size_t sz);
 
-struct mydir;
-typedef struct mydir ramdir_t;
-typedef ramdir_t mynode_t;
+struct ramdir;
+typedef struct ramdir ramdir_t;
+typedef ramdir_t ramnode_t;
 
 typedef struct {
 	ramdir_t *root;
 	allocator_t alloc;
 } superblock_t;
 
-struct mydir {
+struct ramdir {
 	/* common fields */
+	ramfs_type type;
 	char *fname;
 	ramdir_t *parent;
 	superblock_t *sb;
 	struct stat attr;
 
 	/* special fields */
-	vector child_dirs;
-	vector child_files;
+	struct hash_table *kids;
 };
 
 typedef struct {
 	/* common fields */
+	ramfs_type type;
 	char *fname;
 	ramdir_t *parent;
 	superblock_t *sb;
@@ -55,10 +58,8 @@ void ramfs_init(superblock_t *sb, allocator_t alloc);
 ramfile_t *ramfs_file_new(ramdir_t *curdir, char *fpath);
 ramdir_t *ramfs_dir_new(ramdir_t *curdir, char *fpath);
 
-ramfile_t *ramfs_lookup_file(ramdir_t *curdir, char *fpath);
-ramdir_t *ramfs_lookup_dir(ramdir_t *curdir, char *fpath);
-
-mynode_t *ramfs_lookup_dirname(ramdir_t *curdir, char *fpath);
+ramnode_t *ramfs_lookup(ramdir_t *curdir, char *fpath);
+ramnode_t *ramfs_lookup_dirname(ramdir_t *curdir, char *fpath);
 
 /* File operations */
 ramfile_t *ramfs_file_open(ramdir_t *curdir, char *filepath, int flags);
@@ -72,9 +73,7 @@ int ramfs_file_rm(ramdir_t *curdir, char *filepath);
 ramdir_t *ramfs_mkdir(ramdir_t *curdir, char *filepath);
 
 /* Internal stuff */
-ramfs_type ramfs_obj_type(ramdir_t *curdir, char *fpath);
-int ramfs_dir_add_dir(ramdir_t *parent, ramdir_t *child);
-int ramfs_dir_add_file(ramdir_t *parent, ramfile_t *child);
+int ramfs_dir_add(ramdir_t *parent, ramnode_t *child);
 
 /* Debugging stuff */
 void ramfs_debug_ls(ramdir_t *sb);

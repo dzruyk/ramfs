@@ -11,8 +11,8 @@ open_test(superblock_t *sb)
 	ramfile_t *fp;
 	ramdir_t *dp;
 
-	dp = ramfs_lookup_dir(sb->root, "/tmp/dir");
-	if (dp != NULL) {
+	dp = ramfs_lookup(sb->root, "/tmp/dir");
+	if (dp != NULL && dp->type == TYPE_DIR) {
 		fp = ramfs_file_open(dp, "file.txt", O_RDWR);
 		//ramfs_file_write(fp, "hello", 5, 0);
 	}
@@ -30,7 +30,7 @@ main(int argc, const char *argv[])
 	assert(	ramfs_file_new(sb.root, "/tmp/hello"));
 	assert(	ramfs_file_new(sb.root, "/../../../../../q.txt"));
 
-	assert( ramfs_lookup_file (sb.root, "/tmp/dir/subdir/hello") == NULL);
+	assert( ramfs_lookup(sb.root, "/tmp/dir/subdir/hello") == NULL);
 
 	open_test(&sb);
 

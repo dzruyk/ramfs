@@ -15,11 +15,9 @@
 	return 0;					\
 } while (0)
 
-#define NODE(n) ((mynode_t *)n)
-
 
 static void *
-_alloc(mynode_t *n, int sz) {
+_alloc(ramnode_t *n, int sz) {
 	void *ptr;
 
 	assert(n && n->sb && n->sb->alloc);
@@ -31,44 +29,67 @@ _alloc(mynode_t *n, int sz) {
 	return ptr;
 }
 
+static int
+ramfs_hash_cmp(const void *a, const void *b)
+{
+	assert(a && b);
+
+	return strcmp((char*)a, (char*)b);
+}
+
+static unsigned long
+ramfs_hash_cb(const void *data)
+{
+	ramnode_t *na;
+	char *s;
+	int i, mult, res;
+
+	assert(data);
+
+	mult = 31;
+	res = 0;
+	s = (char*)data;
+
+	for (i = 0; i < strlen(data); i++)
+		res = res * mult + s[i];
+	return res;
+}
+
 static void
 dir_init(ramdir_t *d, ramdir_t *parent, char *fname)
 {
 	assert(d && fname);
 
+	d->type = TYPE_DIR;
 	d->fname = strdup(fname);	//TODO: use user allocator
 	if (parent) {
 		d->parent = d;
 		d->sb = parent->sb;
 	}
 
-	vector_init(&d->child_dirs, sizeof(ramdir_t *), d->sb->alloc);
-	vector_init(&d->child_files, sizeof(ramfile_t *), d->sb-> alloc);
+	d->kids = hash_table_new(0, ramfs_hash_cb, ramfs_hash_cmp);
 }
 
 static void
 dir_finalize(ramdir_t *d)
 {
-	int nfiles, ndirs;
+	int nkids;
 
 	assert(d);
-	nfiles = vector_nmemb(&d->child_files);
-	ndirs = vector_nmemb(&d->child_dirs);
+	nkids = d->kids->size;
 
-	assert(nfiles == 0 && ndirs == 0);
+	assert(nkids == 0);
 
-	vector_free(&d->child_files);
-	vector_free(&d->child_dirs);
+	hash_table_destroy(&d->kids);
 
 	free(d->fname);
 	d->sb->alloc(d, 0);
 }
 
-static ramdir_t *
-dir_search_dir(ramdir_t *curdir, char *filename)
+static ramnode_t *
+dir_search(ramdir_t *curdir, char *filename)
 {
-	ramdir_t **dirs;
-	int i, n;
+	ramnode_t *n = NULL;
 
 	//special cases
 	if (strcmp(filename, ".") == 0)
@@ -77,13 +98,9 @@ dir_search_dir(ramdir_t *curdir, char *filename)
 	if (strcmp(filename, "..") == 0)
 		return curdir->parent;
 
-	n = vector_nmemb(&curdir->child_dirs);
-	dirs = vector_data(&curdir->child_dirs);
-	for (i = 0; i < n; i++) {
-		if (strcmp(filename, dirs[i]->fname) == 0)
-			return dirs[i];
-	}
-	return NULL;
+	hash_table_lookup(curdir->kids, filename, (void **)&n);
+
+	return n;
 }
 
 void
@@ -110,11 +127,12 @@ ramfs_file_new(ramdir_t *curdir, char *fpath)
 
 	f = _alloc(curdir, sizeof(*f));
 
+	f->type = TYPE_FILE;
 	f->sb = curdir->sb;
 	f->parent = parent;
 	f->fname = basename(fpath);
 
-	ramfs_dir_add_file(parent, f);
+	ramfs_dir_add(parent, RAMNODE(f));
 
 	return f;
 }
@@ -132,24 +150,16 @@ ramfs_dir_new(ramdir_t *curdir, char *fpath)
 	d = _alloc(curdir, sizeof(*d));
 
 	dir_init(d, parent, basename(fpath));
-	ramfs_dir_add_dir(parent, d);
+	ramfs_dir_add(parent, d);
 
 	return d;
 }
 
 int
-ramfs_dir_add_file(ramdir_t *parent, ramfile_t *child)
+ramfs_dir_add(ramdir_t *parent, ramnode_t *child)
 {
 	assert(child);
-	vector_push(&parent->child_files, &child);
-	return 0;
-}
-
-int
-ramfs_dir_add_dir(ramdir_t *parent, ramdir_t *child)
-{
-	assert(child);
-	vector_push(&parent->child_dirs, &child);
+	hash_table_insert_unique(parent->kids, child->fname, child);
 	return 0;
 }
 
@@ -160,8 +170,8 @@ ramfs_mkdir(ramdir_t *curdir, char *filepath)
 }
 
 
-ramfile_t *
-ramfs_lookup_file(ramdir_t *curdir, char *fpath)
+ramnode_t *
+ramfs_lookup(ramdir_t *curdir, char *fpath)
 {
 	ramdir_t *d;
 
@@ -172,23 +182,7 @@ ramfs_lookup_file(ramdir_t *curdir, char *fpath)
 	if (!d)
 		return NULL;
 
-	return NULL;
-	//return dir_search_file(d, basename(fpath));
-}
-
-ramdir_t *
-ramfs_lookup_dir(ramdir_t *curdir, char *fpath)
-{
-	ramdir_t *d;
-
-	if (fpath == NULL)
-		return NULL;
-
-	d = ramfs_lookup_dirname(curdir, fpath);
-	if (!d)
-		return NULL;
-
-	return dir_search_dir(d, basename(fpath));
+	return dir_search(d, basename(fpath));
 }
 
 ramdir_t *
@@ -216,8 +210,8 @@ ramfs_lookup_dirname(ramdir_t *curdir, char *fpath)
 		memset(buf, 0, sizeof(buf));
 		strncpy(buf, fpath, ptr - fpath);
 
-		child = dir_search_dir(curdir, buf);
-		if (!child)
+		child = dir_search(curdir, buf);
+		if (!child || child->type != TYPE_DIR)
 			return NULL;
 
 		curdir = child;
@@ -237,28 +231,22 @@ ramfs_file_open(ramdir_t *curdir, char *filepath, int flags)
 void
 ramfs_debug_ls(ramdir_t *d)
 {
-	int i, nfiles, ndirs;
+	struct hash_table_iter *iter;
+	ramdir_t *dp;
+	char *fname;
 
-	nfiles = vector_nmemb(&d->child_files);
-	printf("dir %s, Nfiles = %d\n", d->fname, nfiles);
-	for (i = 0; i < nfiles; i++) {
-		ramfile_t *fp;
-		fp = *(ramfile_t **)vector_get(&d->child_files, i);
-		printf("\tfilename = %s\n", fp->fname);
+	printf("dir %s, nchilds = %ld\n", d->fname, d->kids->count);
+	iter = hash_table_iterate_init(d->kids);
+	while (hash_table_iterate(iter, (void **)&fname, (void **)&dp)) {
+		printf("\tfilename = %s\n", dp->fname);
 	}
+	hash_table_iterate_deinit(&iter);
 
-	ndirs = vector_nmemb(&d->child_dirs);
-	printf("dir %s, Ndirs = %d\n", d->fname, ndirs);
-	for (i = 0; i < ndirs; i++) {
-		ramdir_t *fp;
-		fp = *(ramdir_t **)vector_get(&d->child_dirs, i);
-		printf("\tdirname = %s\n", fp->fname);
+	iter = hash_table_iterate_init(d->kids);
+	while (hash_table_iterate(iter, (void **)&fname, (void **)&dp)) {
+		if (dp->type != TYPE_DIR) continue;
+		ramfs_debug_ls(dp);
 	}
-
-	for (i = 0; i < ndirs; i++) {
-		ramdir_t *fp;
-		fp = *(ramdir_t **)vector_get(&d->child_dirs, i);
-		ramfs_debug_ls(fp);
-	}
+	hash_table_iterate_deinit(&iter);
 
 }

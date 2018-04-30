@@ -1,5 +1,5 @@
-OBJ=main.o ramfs.o vector/vector.o
-CFLAGS=-Wall -g
+OBJ=main.o ramfs.o hash/hash.o hash/primes.o
+CFLAGS=-Wall -g -I ./hash
 BIN=fusetest
 
 all: $(BIN)
