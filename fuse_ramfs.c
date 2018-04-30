@@ -36,16 +36,12 @@ fuseram_getattr(const char *path, struct stat *stbuf)
 	int res = 0;
 	ramnode_t *n;
 
-	printf("getattr %s\n", path);
 	memset(stbuf, 0, sizeof(struct stat));
 	n = ramfs_lookup(ramfs->root, path);
-	printf("ramfs_lookup result %p\n", n);
 	if (!n)
 		return -ENOENT;
 
 	*stbuf = n->attr;
-
-	printf("getattr res %d\n", res);
 
 	return res;
 }
@@ -78,7 +74,6 @@ fuseram_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 	iter = hash_table_iterate_init(dp->kids);
 	while (hash_table_iterate(iter, (void **)&fname, (void **)&child)) {
-		printf("@readdir_iter %s\n", fname);
 		filler(buf, fname, &child->attr, 0);
 	}
 	hash_table_iterate_deinit(&iter);
@@ -128,7 +123,6 @@ fuseram_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	if (fp)
 		return -EEXIST;
 
-	printf("@fuseram_create %s\n", path);
 	fp = ramfs_file_new(ramfs->root, path);
 	if (!fp)
 		return -ENOTDIR;
