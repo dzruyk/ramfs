@@ -21,7 +21,6 @@
 #include "hash/hash.h"
 #include "hash/common.h"
 
-
 superblock_t *ramfs;
 
 void*
@@ -84,7 +83,6 @@ fuseram_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 static int
 fuseram_mkdir(const char *path, mode_t mode)
 {
-
 	ramdir_t *dp;
 
 	dp = ramfs_lookup(ramfs->root, path);
@@ -96,6 +94,38 @@ fuseram_mkdir(const char *path, mode_t mode)
 	dp = ramfs_dir_new(ramfs->root, path);
 	if (!dp)
 		return -EFAULT;
+
+	return 0;
+}
+
+static int
+fuseram_rmdir(const char *path)
+{
+	int res;
+	ramdir_t *dp;
+
+	dp = ramfs_lookup(ramfs->root, path);
+	if (!dp)
+		return -ENOENT;
+	if (dp->type != TYPE_DIR)
+		return -EINVAL;
+
+	res = ramfs_dir_rm(dp);
+	if (res != 0)
+		return - res;
+
+	return 0;
+}
+
+//WARN: Assume that  *to* param does not exist
+static int
+fuseram_rename(const char *from, const char *to)
+{
+	int res;
+
+	res = ramfs_node_move(ramfs->root, from, to);
+	if (res != 0)
+		return -res;
 
 	return 0;
 }
@@ -188,16 +218,36 @@ fuseram_truncate(const char *path, off_t size)
 	ramfile_t *fp;
 	int res;
 
-	fp = ramfs_lookup(ramfs->root, path);
+	fp = (ramfile_t *)ramfs_lookup(ramfs->root, path);
+	if (!fp)
+		return -ENOENT;
 
 	res = ramfs_file_truncate(fp, size);
-	if (res == -1)
-		return -errno;
+	if (res != 0)
+		return -res;
+
+	return 0;
+}
+
+static int
+fuseram_unlink(const char *path)
+{
+	int res;
+	ramfile_t *fp;
+
+	fp = (ramfile_t *)ramfs_lookup(ramfs->root, path);
+	if (!fp || fp->type != TYPE_FILE)
+		return -ENOENT;
+
+	res = ramfs_file_unlink(fp);
+	if (res != 0)
+		return -res;
 
 	return 0;
 }
 
 /* xattr operations are optional and can safely be left unimplemented */
+/*
 static int fuseram_setxattr(const char *path, const char *name, const char *value,
 			size_t size, int flags)
 {
@@ -219,6 +269,7 @@ static int fuseram_removexattr(const char *path, const char *name)
 {
 	return 0;
 }
+*/
 
 static struct fuse_operations fuseram_oper = {
 	.getattr	= fuseram_getattr,
@@ -231,6 +282,8 @@ static struct fuse_operations fuseram_oper = {
 	//.opendir	= fuseram_opendir,
 	.readdir	= fuseram_readdir,
 	.mkdir		= fuseram_mkdir,
+	.rmdir		= fuseram_rmdir,
+	.rename		= fuseram_rename,
 
 	.open		= fuseram_open,
 	.create		= fuseram_create,
@@ -238,6 +291,7 @@ static struct fuse_operations fuseram_oper = {
 	.read		= fuseram_read,
 	.write		= fuseram_write,
 	.truncate	= fuseram_truncate,
+	.unlink		= fuseram_unlink,
 };
 
 int

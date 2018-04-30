@@ -148,6 +148,23 @@ dir_search(ramdir_t *curdir, char *filename)
 	return n;
 }
 
+static int
+node_unlink(ramnode_t *n)
+{
+	ramdir_t *pdp;
+
+	// dont unlink root
+	if (n == n->parent)
+		return EINVAL;
+
+	pdp = n->parent;
+	if (hash_table_remove(pdp->kids, n->fname) == FALSE)
+		return EAGAIN;
+
+	n->parent = NULL;
+	return 0;
+}
+
 void
 ramfs_init(superblock_t *sb, allocator_t alloc)
 {
@@ -211,16 +228,18 @@ ramfs_dir_new(ramdir_t *curdir, const char *fpath)
 int
 ramfs_dir_add(ramdir_t *parent, ramnode_t *child)
 {
-	assert(child);
-	return hash_table_insert_unique(parent->kids, child->fname, child);
-}
+	int res;
 
-ramdir_t *
-ramfs_mkdir(ramdir_t *curdir, char *filepath)
-{
-	TODO_WRITEME;
-}
+	assert(parent && child);
 
+	res = hash_table_insert_unique(parent->kids, child->fname, child);
+	if (res != 0)
+		return EAGAIN;
+
+	child->parent = parent;
+
+	return 0;
+}
 
 ramnode_t *
 ramfs_lookup(ramdir_t *curdir, const char *fpath)
@@ -273,6 +292,46 @@ ramfs_lookup_dirname(ramdir_t *curdir, const char *fpath)
 	return curdir;
 }
 
+int
+ramfs_node_move(ramdir_t *curdir, const char *src, const char *dst)
+{
+	int res;
+	char *newname;
+	ramnode_t *sp, *dp;
+
+	sp = ramfs_lookup(curdir, src);
+	if (!sp)
+		return ENOENT;
+
+	// Special case, don't move root directory
+	if (sp == sp->parent)
+		return EFAULT;
+
+	dp = ramfs_lookup(curdir, dst);
+	if (dp)	//node already exists
+		return ENOENT;
+
+	dp = ramfs_lookup_dirname(curdir, dst);
+	if (!dp)
+		return ENOENT;
+
+	res = node_unlink(sp);
+	if (res != 0)
+		return res;
+
+	newname = basename(dst);
+	if (strcmp(sp->fname, newname) != 0 && *newname != '\0') {
+		free(sp->fname);
+		sp->fname = strdup(newname);
+	}
+
+	res = ramfs_dir_add(dp, sp);
+	if (res != 0)
+		return res;
+
+	return 0;
+}
+
 ramfile_t *
 ramfs_file_open(ramfile_t *fp, int flags)
 {
@@ -293,23 +352,6 @@ ramfs_file_close(ramfile_t *fp)
 	if (!fp->parent && fp->nrefs <= 0) {
 		file_finalize(fp);
 	}
-
-	return 0;
-}
-
-int
-ramfs_file_truncate(ramfile_t *fp, off_t sz)
-{
-	void *ptr;
-
-	ptr = fp->sb->alloc(fp->data, sz);
-	if (ptr)
-		return E2BIG;
-
-	fp->data = ptr;
-	fp->datalen = sz;
-
-	update_stbuf(RAMNODE(fp));
 
 	return 0;
 }
@@ -355,6 +397,65 @@ ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t  off)
 
 	return sz;
 }
+
+int
+ramfs_file_truncate(ramfile_t *fp, off_t sz)
+{
+	void *ptr;
+
+	assert(fp);
+
+	if (fp->type != TYPE_FILE)
+		return EINVAL;
+
+	ptr = fp->sb->alloc(fp->data, sz);
+	if (ptr)
+		return E2BIG;
+
+	fp->data = ptr;
+	fp->datalen = sz;
+
+	update_stbuf(RAMNODE(fp));
+
+	return 0;
+}
+
+int
+ramfs_file_unlink(ramfile_t *fp)
+{
+	int res;
+
+	assert(fp);
+	if (fp->type != TYPE_FILE)
+		return EINVAL;
+
+	res = node_unlink(RAMNODE(fp));
+	if (res != 0)
+		return res;
+	if (fp->nrefs <= 0)
+		file_finalize(fp);
+
+	return 0;
+}
+
+int
+ramfs_dir_rm(ramdir_t *dp)
+{
+	int res;
+
+	if (dp->kids->count != 0)
+		return ENOTEMPTY;
+
+	res = node_unlink(dp);
+	if (res != 0)
+		return res;
+
+	dir_finalize(dp);
+
+	return 0;
+}
+
+/* DEBUGGING STUFF */
 
 void
 ramfs_debug_ls(ramdir_t *d)
