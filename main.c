@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+
 #include "ramfs.h"
 
 int
@@ -33,6 +34,7 @@ main(int argc, const char *argv[])
 	superblock_t sb;
 
 	ramfs_init(&sb, realloc);
+	assert( ramfs_lookup(sb.root, "/"));
 	assert( ramfs_dir_new(sb.root, "/tmp"));
 	assert(	ramfs_file_new(sb.root, "/tmp/hello"));
 	assert(	ramfs_file_new(sb.root, "/../../../../../q.txt"));

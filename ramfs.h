@@ -58,8 +58,8 @@ void ramfs_destroy(superblock_t *sb);
 ramfile_t *ramfs_file_new(ramdir_t *curdir, char *fpath);
 ramdir_t *ramfs_dir_new(ramdir_t *curdir, char *fpath);
 
-ramnode_t *ramfs_lookup(ramdir_t *curdir, char *fpath);
-ramnode_t *ramfs_lookup_dirname(ramdir_t *curdir, char *fpath);
+ramnode_t *ramfs_lookup(ramdir_t *curdir, const char *fpath);
+ramnode_t *ramfs_lookup_dirname(ramdir_t *curdir, const char *fpath);
 
 /* File operations */
 ramfile_t *ramfs_file_open(ramdir_t *curdir, char *filepath, int flags);

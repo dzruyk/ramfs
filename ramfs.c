@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -93,13 +94,48 @@ file_finalize(ramfile_t *f)
 	f->sb->alloc(f, 0);
 }
 
+static void
+init_stbuf(ramnode_t *n)
+{
+	struct stat *stbuf;
+	stbuf = &n->attr;
+	stbuf->st_nlink = 1;
+	if (n->type == TYPE_FILE) {
+		ramfile_t *fp = (ramfile_t *) n;
+
+		stbuf->st_mode = S_IFREG | 0444;
+		stbuf->st_size = fp->datalen;
+	} else if (n->type == TYPE_DIR) {
+		stbuf->st_mode = S_IFDIR | 0755;
+	} else {
+		assert(0);
+	}
+}
+
+static void
+update_stbuf(ramnode_t *n)
+{
+	struct stat *stbuf = &n->attr;
+
+	if (n->type == TYPE_FILE) {
+		ramfile_t *fp = (ramfile_t *) n;
+
+		stbuf->st_size = fp->datalen;
+	} else if (n->type == TYPE_DIR) {
+		;
+	} else {
+		assert(0);
+	}
+
+}
+
 static ramnode_t *
 dir_search(ramdir_t *curdir, char *filename)
 {
 	ramnode_t *n = NULL;
 
 	//special cases
-	if (strcmp(filename, ".") == 0)
+	if (*filename == '\0' || strcmp(filename, ".") == 0)
 		return curdir;
 
 	if (strcmp(filename, "..") == 0)
@@ -139,6 +175,7 @@ ramfs_file_new(ramdir_t *curdir, char *fpath)
 	f->parent = parent;
 	f->fname = basename(fpath);
 
+	init_stbuf(RAMNODE(f));
 	ramfs_dir_add(parent, RAMNODE(f));
 
 	return f;
@@ -157,6 +194,7 @@ ramfs_dir_new(ramdir_t *curdir, char *fpath)
 	d = _alloc(curdir, sizeof(*d));
 
 	dir_init(d, parent, basename(fpath));
+	init_stbuf(d);
 	ramfs_dir_add(parent, d);
 
 	return d;
@@ -178,7 +216,7 @@ ramfs_mkdir(ramdir_t *curdir, char *filepath)
 
 
 ramnode_t *
-ramfs_lookup(ramdir_t *curdir, char *fpath)
+ramfs_lookup(ramdir_t *curdir, const char *fpath)
 {
 	ramdir_t *d;
 
@@ -193,7 +231,7 @@ ramfs_lookup(ramdir_t *curdir, char *fpath)
 }
 
 ramdir_t *
-ramfs_lookup_dirname(ramdir_t *curdir, char *fpath)
+ramfs_lookup_dirname(ramdir_t *curdir, const char *fpath)
 {
 	ramdir_t *child;
 	char *ptr;
@@ -289,6 +327,8 @@ ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t  off)
 		fp->data = ptr;
 	}
 	memcpy(fp->data + off, buf, sz);
+
+	update_stbuf(RAMNODE(fp));
 
 	return sz;
 }
