@@ -174,10 +174,14 @@ ramfs_file_new(ramdir_t *curdir, const char *fpath)
 	f->type = TYPE_FILE;
 	f->sb = curdir->sb;
 	f->parent = parent;
-	f->fname = basename(fpath);
+	f->fname = strdup(basename(fpath));
 
 	init_stbuf(RAMNODE(f));
-	ramfs_dir_add(parent, RAMNODE(f));
+	if (ramfs_dir_add(parent, RAMNODE(f)) != 0) {
+		free(f->fname);
+		parent->sb->alloc(f, 0);
+		return NULL;
+	}
 
 	return f;
 }
@@ -195,7 +199,10 @@ ramfs_dir_new(ramdir_t *curdir, const char *fpath)
 	d = _alloc(curdir, sizeof(*d));
 
 	dir_init(d, parent, basename(fpath));
-	ramfs_dir_add(parent, d);
+	if (ramfs_dir_add(parent, d) != 0) {
+		dir_finalize(d);
+		return NULL;
+	}
 
 	return d;
 }
@@ -204,8 +211,7 @@ int
 ramfs_dir_add(ramdir_t *parent, ramnode_t *child)
 {
 	assert(child);
-	hash_table_insert_unique(parent->kids, child->fname, child);
-	return 0;
+	return hash_table_insert_unique(parent->kids, child->fname, child);
 }
 
 ramdir_t *
@@ -282,7 +288,7 @@ ramfs_file_close(ramfile_t *fp)
 {
 	fp->nrefs--;
 
-	printf("@file close nrefs %d parent %p\n", fp->nrefs, fp->parent);
+	//printf("@file close nrefs %d parent %p\n", fp->nrefs, fp->parent);
 	if (!fp->parent && fp->nrefs <= 0) {
 		file_finalize(fp);
 	}
