@@ -56,6 +56,24 @@ ramfs_hash_cb(const void *data)
 }
 
 static void
+init_stbuf(ramnode_t *n)
+{
+	struct stat *stbuf;
+	stbuf = &n->attr;
+	stbuf->st_nlink = 1;
+	if (n->type == TYPE_FILE) {
+		ramfile_t *fp = (ramfile_t *) n;
+
+		stbuf->st_mode = S_IFREG | 0444;
+		stbuf->st_size = fp->datalen;
+	} else if (n->type == TYPE_DIR) {
+		stbuf->st_mode = S_IFDIR | 0755;
+	} else {
+		assert(0);
+	}
+}
+
+static void
 dir_init(ramdir_t *d, ramdir_t *parent, char *fname)
 {
 	assert(d && fname);
@@ -67,6 +85,7 @@ dir_init(ramdir_t *d, ramdir_t *parent, char *fname)
 		d->sb = parent->sb;
 	}
 
+	init_stbuf(d);
 	d->kids = hash_table_new(0, ramfs_hash_cb, ramfs_hash_cmp);
 }
 
@@ -92,24 +111,6 @@ file_finalize(ramfile_t *f)
 	if (f->datalen > 0)
 		f->sb->alloc(f->data, 0);
 	f->sb->alloc(f, 0);
-}
-
-static void
-init_stbuf(ramnode_t *n)
-{
-	struct stat *stbuf;
-	stbuf = &n->attr;
-	stbuf->st_nlink = 1;
-	if (n->type == TYPE_FILE) {
-		ramfile_t *fp = (ramfile_t *) n;
-
-		stbuf->st_mode = S_IFREG | 0444;
-		stbuf->st_size = fp->datalen;
-	} else if (n->type == TYPE_DIR) {
-		stbuf->st_mode = S_IFDIR | 0755;
-	} else {
-		assert(0);
-	}
 }
 
 static void
@@ -159,7 +160,7 @@ ramfs_init(superblock_t *sb, allocator_t alloc)
 }
 
 ramfile_t *
-ramfs_file_new(ramdir_t *curdir, char *fpath)
+ramfs_file_new(ramdir_t *curdir, const char *fpath)
 {
 	ramfile_t *f;
 	ramdir_t *parent;
@@ -182,7 +183,7 @@ ramfs_file_new(ramdir_t *curdir, char *fpath)
 }
 
 ramdir_t *
-ramfs_dir_new(ramdir_t *curdir, char *fpath)
+ramfs_dir_new(ramdir_t *curdir, const char *fpath)
 {
 	ramdir_t *d;
 	ramdir_t *parent;
@@ -194,7 +195,6 @@ ramfs_dir_new(ramdir_t *curdir, char *fpath)
 	d = _alloc(curdir, sizeof(*d));
 
 	dir_init(d, parent, basename(fpath));
-	init_stbuf(d);
 	ramfs_dir_add(parent, d);
 
 	return d;
@@ -267,18 +267,14 @@ ramfs_lookup_dirname(ramdir_t *curdir, const char *fpath)
 }
 
 ramfile_t *
-ramfs_file_open(ramdir_t *curdir, char *filepath, int flags)
+ramfs_file_open(ramfile_t *fp, int flags)
 {
-	ramfile_t *f;
-
-	//TODO: handle flags
-
-	f = (ramfile_t *)ramfs_lookup(curdir, filepath);
-	if (f == NULL || f->type != TYPE_FILE)
+	if (fp == NULL || fp->type != TYPE_FILE)
 		return NULL;
 
-	f->nrefs++;
-	return f;
+	//TODO: handle flags
+	fp->nrefs++;
+	return fp;
 }
 
 int
@@ -286,6 +282,7 @@ ramfs_file_close(ramfile_t *fp)
 {
 	fp->nrefs--;
 
+	printf("@file close nrefs %d parent %p\n", fp->nrefs, fp->parent);
 	if (!fp->parent && fp->nrefs <= 0) {
 		file_finalize(fp);
 	}

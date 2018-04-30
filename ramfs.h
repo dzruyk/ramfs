@@ -55,14 +55,14 @@ typedef struct {
 void ramfs_init(superblock_t *sb, allocator_t alloc);
 void ramfs_destroy(superblock_t *sb);
 
-ramfile_t *ramfs_file_new(ramdir_t *curdir, char *fpath);
-ramdir_t *ramfs_dir_new(ramdir_t *curdir, char *fpath);
+ramfile_t *ramfs_file_new(ramdir_t *curdir, const char *fpath);
+ramdir_t *ramfs_dir_new(ramdir_t *curdir, const char *fpath);
 
 ramnode_t *ramfs_lookup(ramdir_t *curdir, const char *fpath);
 ramnode_t *ramfs_lookup_dirname(ramdir_t *curdir, const char *fpath);
 
 /* File operations */
-ramfile_t *ramfs_file_open(ramdir_t *curdir, char *filepath, int flags);
+ramfile_t *ramfs_file_open(ramfile_t *fp, int flags);
 int ramfs_file_read(ramfile_t *fp, char *buf, int sz, off_t off);
 int ramfs_file_write(ramfile_t *fp, const char *buf, int sz, off_t off);
 int ramfs_file_close(ramfile_t *fp);

@@ -16,7 +16,8 @@ open_test(superblock_t *sb)
 
 	dp = ramfs_lookup(sb->root, "/tmp/dir");
 	if (dp != NULL && dp->type == TYPE_DIR) {
-		fp = ramfs_file_open(dp, "file.txt", O_RDWR);
+		fp = ramfs_file_new(dp, "file.txt");
+		fp = ramfs_file_open(fp, O_RDWR);
 		ramfs_file_write(fp, "hello", 5, 0);
 		ramfs_file_close(fp);
 
